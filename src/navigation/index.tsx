@@ -3,7 +3,7 @@ import Login from '../register/Login';
 import Register from '../register/Register';
 import BottomTabs from '../components/BottomTabs';
 import ReviewDetails from '../screens/ReviewDetails';
-import RecentReviews from '../screens/RecentReviews';
+
 
 // Define the Review type that matches your data structure
 type Review = {
@@ -30,8 +30,7 @@ export type RootStackParamList = {
     reviewId: number;
     reviewData: Review;
   };
-  RecentReviews: undefined;
-  // Remove ReviewCard from here - it's a component, not a screen
+
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -46,7 +45,7 @@ export default function RootNavigator() {
       <Stack.Screen name="Register" component={Register} />
       <Stack.Screen name="BottomTabs" component={BottomTabs} />
       <Stack.Screen name="ReviewDetails" component={ReviewDetails} />
-      <Stack.Screen name="RecentReviews" component={RecentReviews} />
+
     </Stack.Navigator>
   );
 }
