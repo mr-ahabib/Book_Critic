@@ -118,7 +118,7 @@ const ReviewDetails = () => {
       >
         <View className="flex-row items-center justify-center">
           <FontAwesome name="book" size={24} color="#fff" />
-          <Text className="text-white text-xl font-bold ml-2">BookCritic</Text>
+          <Text className="text-white text-xl font-bold ml-2">Book Critic</Text>
         </View>
       </LinearGradient>
 

@@ -2,7 +2,7 @@ import { View, Text, TextInput, TouchableOpacity } from 'react-native';
 import { MaterialIcons, FontAwesome } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
-export const Header = ({ title = 'BookCritic', showSearch = true }) => {
+export const Header = ({ title = 'Book Critic', showSearch = true }) => {
   return (
     <LinearGradient
       colors={['#0d9488', '#0891b2']}

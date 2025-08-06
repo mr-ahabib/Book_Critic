@@ -205,7 +205,7 @@ const Register = () => {
             <View className="absolute -bottom-6 -left-6 w-12 h-12">
               <FontAwesome name="quote-left" size={16} color="#0d9488" />
             </View>
-            <Text className="text-3xl font-bold text-[#0d9488]">BookVoyage</Text>
+            <Text className="text-3xl font-bold text-[#0d9488]">Book Critic</Text>
             <Text className="text-base text-gray-600 mt-2">Start your reading adventure</Text>
           </View>
           
