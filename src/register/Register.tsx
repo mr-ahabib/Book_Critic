@@ -1,11 +1,12 @@
-import { View, Text, TextInput, TouchableOpacity, Keyboard, TouchableWithoutFeedback, StyleSheet, Animated, Easing } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Keyboard, TouchableWithoutFeedback, StyleSheet, Animated, Easing , Alert} from 'react-native';
 import React, { useState, useEffect } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation';
 import * as Yup from 'yup';
 import { MaterialIcons, Ionicons, FontAwesome, Feather } from '@expo/vector-icons';
-
+import { signup } from '../api/authApi';
+import { useDispatch } from 'react-redux';
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Register'>;
 
 const RegisterSchema = Yup.object().shape({
@@ -29,6 +30,7 @@ const Register = () => {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const dispatch = useDispatch();
   const [errors, setErrors] = useState({
     name: '',
     email: '',
@@ -113,38 +115,47 @@ const Register = () => {
     outputRange: [0, 10],
   });
 
-  const handleSubmit = async () => {
-    try {
-      await RegisterSchema.validate(
-        { name, email, phone, password, confirmPassword },
-        { abortEarly: false }
-      );
-      setErrors({
+const handleSubmit = async () => {
+  try {
+    await RegisterSchema.validate(
+      { name, email, phone, password, confirmPassword },
+      { abortEarly: false }
+    );
+    setErrors({
+      name: '',
+      email: '',
+      phone: '',
+      password: '',
+      confirmPassword: ''
+    });
+
+    const response = await signup({ name, email, phone, password });
+    Alert.alert('Registration successful', 'Please login to continue.');
+    navigation.navigate('Login');
+
+  } catch (err: any) {
+    if (err instanceof Yup.ValidationError) {
+      const newErrors = {
         name: '',
         email: '',
         phone: '',
         password: '',
         confirmPassword: ''
+      };
+      err.inner.forEach(error => {
+        if (error.path) {
+          newErrors[error.path as keyof typeof newErrors] = error.message;
+        }
       });
-      navigation.navigate('BottomTabs');
-    } catch (err) {
-      if (err instanceof Yup.ValidationError) {
-        const newErrors = {
-          name: '',
-          email: '',
-          phone: '',
-          password: '',
-          confirmPassword: ''
-        };
-        err.inner.forEach(error => {
-          if (error.path) {
-            newErrors[error.path as keyof typeof newErrors] = error.message;
-          }
-        });
-        setErrors(newErrors);
-      }
+      setErrors(newErrors);
+    } else if (err.response) {
+      Alert.alert('Registration Failed', err.response.data.message || 'Try again');
+    } else {
+      Alert.alert('Registration Failed', 'Something went wrong. Please try again.');
     }
-  };
+  }
+};
+
 
   const toggleShowPassword = () => {
     setShowPassword(!showPassword);

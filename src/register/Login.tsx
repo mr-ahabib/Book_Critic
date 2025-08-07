@@ -1,10 +1,14 @@
-import { View, Text, TextInput, TouchableOpacity, Keyboard, TouchableWithoutFeedback, StyleSheet, Animated, Easing } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Keyboard, TouchableWithoutFeedback, StyleSheet, Animated, Easing,Alert  } from 'react-native';
 import React, { useState, useEffect } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation';
 import * as Yup from 'yup';
 import { MaterialIcons, Ionicons, FontAwesome, Feather } from '@expo/vector-icons';
+import { login } from '../api/authApi';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useDispatch } from 'react-redux';
+import { setCredentials } from '../redux/slices/authSlice';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
@@ -24,7 +28,7 @@ const Login = () => {
   const spinValue = new Animated.Value(0);
   const scaleValue = new Animated.Value(1);
   const floatAnim = new Animated.Value(0);
-
+const dispatch = useDispatch();
   // All animations
   useEffect(() => {
     const spinAnimation = Animated.loop(
@@ -97,21 +101,31 @@ const Login = () => {
   });
 
   const handleSubmit = async () => {
-    try {
-      await LoginSchema.validate({ email, password }, { abortEarly: false });
-      setErrors({ email: '', password: '' });
-      navigation.navigate('BottomTabs');
-    } catch (err) {
-      if (err instanceof Yup.ValidationError) {
-        const newErrors = { email: '', password: '' };
-        err.inner.forEach(error => {
-          if (error.path === 'email') newErrors.email = error.message;
-          if (error.path === 'password') newErrors.password = error.message;
-        });
-        setErrors(newErrors);
-      }
+  try {
+    await LoginSchema.validate({ email, password }, { abortEarly: false });
+    setErrors({ email: '', password: '' });
+
+    const response = await login({ email, password });
+    const { token, user } = response.data;
+    await AsyncStorage.setItem('token', token);
+    dispatch(setCredentials({ token, user }));
+    navigation.navigate('BottomTabs');
+
+  } catch (err: any) {
+    if (err instanceof Yup.ValidationError) {
+      const newErrors = { email: '', password: '' };
+      err.inner.forEach(error => {
+        if (error.path === 'email') newErrors.email = error.message;
+        if (error.path === 'password') newErrors.password = error.message;
+      });
+      setErrors(newErrors);
+    } else if (err.response) {
+      Alert.alert('Login Failed', err.response.data.message || 'Invalid credentials');
+    } else {
+      Alert.alert('Login Failed', 'Something went wrong. Please try again.');
     }
-  };
+  }
+};
 
   const toggleShowPassword = () => {
     setShowPassword(!showPassword);

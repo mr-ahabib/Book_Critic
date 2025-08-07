@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Modal, Pressable } from 'react-native';
 import { Feather, MaterialCommunityIcons, FontAwesome } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSelector } from 'react-redux';
+import { RootState } from '../redux/store'; // adjust this path if needed
 
 const Profile = () => {
   const [modalVisible, setModalVisible] = useState(false);
@@ -16,13 +18,7 @@ const Profile = () => {
     confirm: ''
   });
 
-  const userData = {
-    name: 'Alex Johnson',
-    email: 'alex.johnson@example.com',
-    phone: '+1 (555) 123-4567',
-    joinDate: 'March 22, 2022',
-    membership: 'Premium'
-  };
+const userData = useSelector((state: RootState) => state.auth.user);
 
   const validatePassword = () => {
     let valid = true;
@@ -85,9 +81,9 @@ const Profile = () => {
             <View className="bg-[#0d9488]/10 p-4 rounded-full border-2 border-[#0d9488]/20">
               <Feather name="user" size={32} color="#0d9488" />
             </View>
-            <Text className="text-gray-900 text-xl font-bold mt-3">{userData.name}</Text>
+            <Text className="text-gray-900 text-xl font-bold mt-3">{userData?.name}</Text>
             <Text className="text-[#0d9488] text-sm font-medium mt-1">
-              {userData.membership} Member
+               Reviewer
             </Text>
           </View>
 
@@ -99,7 +95,7 @@ const Profile = () => {
               </View>
               <View className="flex-1">
                 <Text className="text-gray-500 text-xs">FULL NAME</Text>
-                <Text className="text-gray-900 text-base mt-1">{userData.name}</Text>
+                <Text className="text-gray-900 text-base mt-1">{userData?.name}</Text>
               </View>
             </View>
 
@@ -109,7 +105,7 @@ const Profile = () => {
               </View>
               <View className="flex-1">
                 <Text className="text-gray-500 text-xs">EMAIL ADDRESS</Text>
-                <Text className="text-gray-900 text-base mt-1">{userData.email}</Text>
+                <Text className="text-gray-900 text-base mt-1">{userData?.email}</Text>
               </View>
             </View>
 
@@ -119,7 +115,7 @@ const Profile = () => {
               </View>
               <View className="flex-1">
                 <Text className="text-gray-500 text-xs">PHONE NUMBER</Text>
-                <Text className="text-gray-900 text-base mt-1">{userData.phone}</Text>
+                <Text className="text-gray-900 text-base mt-1">{userData?.phone}</Text>
               </View>
             </View>
 
@@ -129,7 +125,14 @@ const Profile = () => {
               </View>
               <View className="flex-1">
                 <Text className="text-gray-500 text-xs">MEMBER SINCE</Text>
-                <Text className="text-gray-900 text-base mt-1">{userData.joinDate}</Text>
+                <Text className="text-gray-900 text-base mt-1">
+  {userData?.createdAt ? new Date(userData.createdAt).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  }) : ''}
+</Text>
+
               </View>
             </View>
           </View>
