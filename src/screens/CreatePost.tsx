@@ -4,7 +4,10 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation';
-
+import { createReviewPost } from '../api/reviewPostApi'; 
+import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import API from '~/api/axiosInstance';
 const CreatePost = () => {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const [title, setTitle] = useState('');
@@ -13,39 +16,78 @@ const CreatePost = () => {
   const [review, setReview] = useState('');
   const [rating, setRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
-  const [coverImage, setCoverImage] = useState<string | null>(null);
 
+const [coverImage, setCoverImage] = useState<ImagePicker.ImageInfo | null>(null);
   const pickImage = async () => {
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [3, 4],
-      quality: 1,
-    });
+  let result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    allowsEditing: true,
+    aspect: [3, 4],
+    quality: 1,
+  });
 
-    if (!result.canceled) {
-      setCoverImage(result.assets[0].uri);
-    }
-  };
+  if (!result.canceled) {
+    setCoverImage(result.assets[0]); 
+  }
+};
 
-  const handleSubmit = () => {
-    const newPost = {
-      title,
-      author,
-      genre,
-      review,
-      rating,
-      cover: coverImage,
-      username: 'currentUser',
-      date: 'Just now',
-      upvotes: 0,
-      downvotes: 0,
-      comments: 0,
+const handleSubmit = async () => {
+  if (!coverImage) {
+    alert('Please select a cover image');
+    return;
+  }
+
+  try {
+    const formData = new FormData();
+
+    // Append text fields
+    formData.append('title', title);
+    formData.append('author', author);
+    formData.append('genre', genre);
+    formData.append('review', review);
+    formData.append('rating', rating.toString());
+
+    // Prepare the file object
+    const uri = Platform.OS === 'android' ? coverImage.uri : coverImage.uri.replace('file://', '');
+    const file = {
+      uri,
+      name: coverImage.fileName || `photo_${Date.now()}.jpg`,
+      type: getMimeType(coverImage.uri),
     };
-    
-    console.log('New post:', newPost);
+
+    // Append the file
+    formData.append('coverUrl', file as any);
+
+    // Call the API
+    await createReviewPost(formData);
+
+    // Clear the form fields here:
+    setTitle('');
+    setAuthor('');
+    setGenre('');
+    setReview('');
+    setRating(0);
+    setCoverImage(null);
+
     navigation.goBack();
-  };
+  } catch (error) {
+    console.error('Submission error:', error);
+    alert('Failed to create review. Please try again.');
+  }
+};
+
+
+const getMimeType = (uri: string) => {
+  const extension = uri.split('.').pop()?.toLowerCase();
+  switch (extension) {
+    case 'jpg':
+    case 'jpeg': return 'image/jpeg';
+    case 'png': return 'image/png';
+    case 'gif': return 'image/gif';
+    default: return 'image/jpeg';
+  }
+};
+
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -66,8 +108,10 @@ const CreatePost = () => {
                   ? 'bg-gray-400' 
                   : 'bg-emerald-700'
               }`}
-              onPress={handleSubmit}
-              disabled={!title || !author || !review || !coverImage}
+              onPress={() => {
+    console.log('Button pressed');
+    handleSubmit();
+  }}
             >
               <Text className="text-lg font-bold text-white">
                 Publish
@@ -86,20 +130,21 @@ const CreatePost = () => {
               onPress={pickImage}
             >
               {coverImage ? (
-                <Image 
-                  source={{ uri: coverImage }} 
-                  className="w-full h-full rounded-lg"
-                  resizeMode="cover"
-                />
-              ) : (
-                <View className="items-center p-4">
-                  <MaterialIcons name="add-a-photo" size={32} color="#0d9488" />
-                  <Text className="mt-2 text-[#0d9488] font-medium text-center">
-                    Tap to add book cover
-                  </Text>
-                  <Text className="text-xs text-[#0d9488]/70 mt-1">(3:4 aspect ratio recommended)</Text>
-                </View>
-              )}
+  <Image 
+    source={{ uri: coverImage.uri }} 
+    className="w-full h-full rounded-lg"
+    resizeMode="cover"
+  />
+) : (
+  <View className="items-center p-4">
+    <MaterialIcons name="add-a-photo" size={32} color="#0d9488" />
+    <Text className="mt-2 text-[#0d9488] font-medium text-center">
+      Tap to add book cover
+    </Text>
+    <Text className="text-xs text-[#0d9488]/70 mt-1">(3:4 aspect ratio recommended)</Text>
+  </View>
+)}
+
             </TouchableOpacity>
           </View>
 
