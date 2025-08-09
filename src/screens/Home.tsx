@@ -6,7 +6,7 @@ import { ReviewCard } from '../components/ReviewCard';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation';
 import { Review } from '../types/review';
-import { fetchTopReviews } from '../api/reviewApi';
+import { fetchTopReviews, recentReview } from '../api/reviewApi';
 
 const PAGE_LIMIT = 10;
 
@@ -38,8 +38,12 @@ const Home = () => {
     setLoading(true);
 
     try {
-    
-      const data = await fetchTopReviews(page, PAGE_LIMIT);
+      let data: any[] = [];
+      if (activeTab === 'popular') {
+        data = await fetchTopReviews(page, PAGE_LIMIT);
+      } else {
+        data = await recentReview(page, PAGE_LIMIT);
+      }
 
       const mappedReviews = data.map((item: any) => ({
         id: item.id,
@@ -58,12 +62,11 @@ const Home = () => {
       }));
 
       if (activeTab === 'popular') {
-        setPopularReviews(prev => page === 1 ? mappedReviews : [...prev, ...mappedReviews]);
+        setPopularReviews(prev => (page === 1 ? mappedReviews : [...prev, ...mappedReviews]) as Review[]);
       } else {
-        setRecentReviews(prev => page === 1 ? mappedReviews : [...prev, ...mappedReviews]);
+        setRecentReviews(prev => (page === 1 ? mappedReviews : [...prev, ...mappedReviews]) as Review[]);
       }
 
-      // If fewer items than PAGE_LIMIT returned, no more pages
       if (mappedReviews.length < PAGE_LIMIT) {
         setHasMore(false);
       } else {
@@ -74,7 +77,7 @@ const Home = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, activeTab, loading, hasMore]);
+  }, [page, activeTab]); // <-- removed loading and hasMore here!
 
   // Load reviews when page or tab changes
   useEffect(() => {
@@ -177,7 +180,7 @@ const Home = () => {
       {/* Reviews List */}
       <FlatList
         data={currentReviews}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={item => item.id.toString()}
         renderItem={({ item }) => (
           <ReviewCard
             review={item}

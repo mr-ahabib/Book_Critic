@@ -1,81 +1,79 @@
-import { useState } from 'react';
-import { View, ScrollView, TouchableOpacity, Text, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, FlatList, TouchableOpacity, Text, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Header } from '../components/Header';
 import { ReviewCard } from '../components/ReviewCard';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation';
+import { myReview,deleteReviewById  } from '../api/reviewApi';
+import { Review } from '../types/review'; // imported Review interface
 
-interface Review {
-  id: number;
-  cover: string;
-  title: string;
-  author: string;
-  rating: number;
-  review: string;
-  username: string;
-  date: string;
-  upvotes: number;
-  downvotes: number;
-  comments: number;
-  upvoted?: boolean;
-  downvoted?: boolean;
-}
+const PAGE_LIMIT = 10;
 
 const MyPosts = () => {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
-  
-  // Initial data for user's posts
-  const [myReviews, setMyReviews] = useState<Review[]>([
-    {
-      id: 1,
-      cover: 'https://m.media-amazon.com/images/I/71tR2ZEQ2JL._AC_UF1000,1000_QL80_.jpg',
-      title: 'The Silent Patient',
-      author: 'Alex Michaelides',
-      rating: 4,
-      review: 'A psychological thriller that will keep you guessing until the very last page.',
-      username: 'bookworm42',
-      date: '2 days ago',
-      upvotes: 24,
-      downvotes: 3,
-      comments: 8,
+
+  const [myReviews, setMyReviews] = useState<Review[]>([]);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+
+  // Remove loading and hasMore from deps here to prevent infinite loops
+  const loadMyReviews = useCallback(async () => {
+  setLoading(true);
+  try {
+    const data = await myReview(page, PAGE_LIMIT);
+
+    const mappedReviews = data.map((item: any) => ({
+      id: item.id,
+      cover: `http://192.168.0.109:8080${item.coverUrl}`,
+      title: item.title,
+      author: item.author,
+      rating: item.rating,
+      review: item.review,
+      username: item.userName,
+      date: new Date(item.createdAt).toLocaleDateString(),
+      upvotes: 0,
+      downvotes: 0,
+      comments: 0,
       upvoted: false,
-      downvoted: false
-    },
-    {
-      id: 2,
-      cover: 'https://m.media-amazon.com/images/I/81bsw6fnUiL._AC_UF1000,1000_QL80_.jpg',
-      title: 'Atomic Habits',
-      author: 'James Clear',
-      rating: 5,
-      review: 'Transform your life with tiny changes in behavior that lead to remarkable results.',
-      username: 'habitmaster',
-      date: '1 week ago',
-      upvotes: 56,
-      downvotes: 2,
-      comments: 12,
-      upvoted: false,
-      downvoted: false
-    }
-  ]);
+      downvoted: false,
+    }));
+
+    setMyReviews(prev => (page === 1 ? mappedReviews : [...prev, ...mappedReviews]));
+    setHasMore(mappedReviews.length >= PAGE_LIMIT);
+  } catch (error) {
+    console.error('Failed to fetch my reviews:', error);
+    Alert.alert('Error', 'Could not load your reviews.');
+  } finally {
+    setLoading(false);
+  }
+}, [page]);  
+
+useEffect(() => {
+  if (!loading && hasMore) {
+    loadMyReviews();
+  }
+}, [page, loadMyReviews]); // No loading or hasMore here
+
 
   const handleVote = (id: number, type: 'up' | 'down') => {
     setMyReviews(myReviews.map(review => {
       if (review.id === id) {
         return type === 'up' 
           ? {
-              ...review,
-              upvotes: review.upvoted ? review.upvotes - 1 : review.upvotes + 1,
-              downvotes: review.downvoted ? review.downvotes - 1 : review.downvotes,
+              ...review, 
+              upvotes: review.upvoted ? (review.upvotes || 0) - 1 : (review.upvotes || 0) + 1,
+              downvotes: review.downvoted ? (review.downvotes || 0) - 1 : (review.downvotes || 0),
               upvoted: !review.upvoted,
-              downvoted: false
+              downvoted: false,
             }
           : {
               ...review,
-              downvotes: review.downvoted ? review.downvotes - 1 : review.downvotes + 1,
-              upvotes: review.upvoted ? review.upvotes - 1 : review.upvotes,
+              downvotes: review.downvoted ? (review.downvotes || 0) - 1 : (review.downvotes || 0) + 1,
+              upvotes: review.upvoted ? (review.upvotes || 0) - 1 : (review.upvotes || 0),
               downvoted: !review.downvoted,
-              upvoted: false
+              upvoted: false,
             };
       }
       return review;
@@ -83,61 +81,81 @@ const MyPosts = () => {
   };
 
   const handleReviewPress = (review: Review) => {
-    navigation.navigate('ReviewDetails', { 
+    navigation.navigate('ReviewDetails', {
       reviewId: review.id,
       reviewData: review,
     });
   };
 
   const handleDelete = (id: number) => {
-    Alert.alert(
-      "Delete Review",
-      "Are you sure you want to delete this review?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel"
-        },
-        { 
-          text: "Delete", 
-          style: "destructive",
-          onPress: () => {
-            setMyReviews(myReviews.filter(review => review.id !== id));
+  Alert.alert(
+    "Delete Review",
+    "Are you sure you want to delete this review?",
+    [
+      { text: "Cancel", style: "cancel" },
+      { 
+        text: "Delete", 
+        style: "destructive",
+        onPress: async () => {
+          try {
+            setLoading(true);
+            await deleteReviewById(id);  // Call backend API to delete
+            setMyReviews(prevReviews => prevReviews.filter(review => review.id !== id)); // Remove from state
+            Alert.alert('Success', 'Review deleted successfully.');
+          } catch (error) {
+            console.error('Failed to delete review:', error);
+            Alert.alert('Error', 'Failed to delete review. Please try again.');
+          } finally {
+            setLoading(false);
           }
         }
-      ]
-    );
+      }
+    ]
+  );
+};
+
+
+  const loadMore = () => {
+    if (!loading && hasMore) {
+      setPage(prev => prev + 1);
+    }
   };
 
   return (
     <View className="flex-1 bg-[#f0fdfa]">
       <Header title="My Posts" />
-      
-      {/* Reviews List */}
-      <ScrollView className="flex-1 px-4" contentContainerStyle={{ paddingBottom: 80 }}>
-        {myReviews.map((review) => (
-          <View key={review.id} className="mb-2">
-            <ReviewCard 
-              review={review}
-              onPress={() => handleReviewPress(review)}
-              onUpvote={() => handleVote(review.id, 'up')}
-              onDownvote={() => handleVote(review.id, 'down')}
-            />
-            <TouchableOpacity 
-              className="absolute top-2 right-2 bg-red-500 rounded-full p-2 z-10"
-              onPress={() => handleDelete(review.id)}
-            >
-              <Ionicons name="trash-outline" size={18} color="white" />
-            </TouchableOpacity>
-          </View>
-        ))}
-        
-        {myReviews.length === 0 && (
-          <View className="flex-1 items-center justify-center mt-10">
-            <Text className="text-gray-500 text-lg">You haven't posted any reviews yet</Text>
-          </View>
-        )}
-      </ScrollView>
+
+      {myReviews.length === 0 && !loading ? (
+        <View className="flex-1 items-center justify-center mt-10">
+          <Text className="text-gray-500 text-lg">You haven't posted any reviews yet</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={myReviews}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => (
+            <View className="mb-2">
+              <ReviewCard 
+                review={item}
+                onPress={() => handleReviewPress(item)}
+                onUpvote={() => handleVote(item.id, 'up')}
+                onDownvote={() => handleVote(item.id, 'down')}
+              />
+              <TouchableOpacity 
+                className="absolute top-2 right-2 bg-red-500 rounded-full p-2 z-10"
+                onPress={() => handleDelete(item.id)}
+              >
+                <Ionicons name="trash-outline" size={18} color="white" />
+              </TouchableOpacity>
+            </View>
+          )}
+          contentContainerStyle={{ paddingBottom: 80, paddingHorizontal: 16 }}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={loading ? <ActivityIndicator size="small" color="#0d9488" /> : null}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
     </View>
   );
 };
