@@ -3,34 +3,18 @@ import Login from '../register/Login';
 import Register from '../register/Register';
 import BottomTabs from '../components/BottomTabs';
 import ReviewDetails from '../screens/ReviewDetails';
+import { Review } from '../types/review';
 
 
-// Define the Review type that matches your data structure
-type Review = {
-  id: number;
-  cover: string;
-  title: string;
-  author: string;
-  rating: number;
-  review: string;
-  username: string;
-  date: string;
-  upvotes: number;
-  downvotes: number;
-  comments: number;
-  upvoted?: boolean;
-  downvoted?: boolean;
-};
 
 export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
   BottomTabs: undefined;
-  ReviewDetails: { 
+  ReviewDetails: {
     reviewId: number;
     reviewData: Review;
   };
-
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
