@@ -7,7 +7,7 @@ import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation';
 import { Review } from '../types/review';
 import { fetchTopReviews, recentReview } from '../api/reviewApi';
-
+import { getCommentCountByReviewId } from '../api/commentApi';
 const PAGE_LIMIT = 10;
 
 const Home = () => {
@@ -20,7 +20,7 @@ const Home = () => {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
-
+const [commentCountsCache, setCommentCountsCache] = useState<Record<number, number>>({});
   // Reset pagination and reviews when tab changes
   useEffect(() => {
     setPage(1);
@@ -45,29 +45,49 @@ const Home = () => {
         data = await recentReview(page, PAGE_LIMIT);
       }
 
-      const mappedReviews = data.map((item: any) => ({
-        id: item.id,
-        cover: `http://192.168.0.109:8080${item.coverUrl}`, // update with your backend IP
-        title: item.title,
-        author: item.author,
-        rating: item.rating,
-        review: item.review,
-        username: item.userName,
-        date: new Date(item.createdAt).toLocaleDateString(),
-        upvotes: 0,
-        downvotes: 0,
-        comments: 0,
-        upvoted: false,
-        downvoted: false,
-      }));
+      // Fetch comment counts for each review
+      const reviewsWithCounts = await Promise.all(
+        data.map(async (item: any) => {
+          let commentCount = 0;
+          try {
+            const countRes = await getCommentCountByReviewId(item.id);
+            commentCount = countRes.totalComments || 0;
+          } catch (err) {
+            console.error(`Failed to fetch comment count for review ${item.id}:`, err);
+          }
+
+          return {
+            id: item.id, // Ensure id is a number
+            cover: `http://192.168.0.109:8080${item.coverUrl}`, // update with backend IP
+            title: item.title,
+            author: item.author,
+            rating: item.rating,
+            review: item.review,
+            username: item.userName,
+            date: new Date(item.createdAt).toLocaleDateString(),
+            upvotes: 0,
+            downvotes: 0,
+            comments: commentCount,
+            upvoted: false,
+            downvoted: false,
+            coverUrl: item.coverUrl,
+            userName: item.userName,
+            createdAt: item.createdAt,
+          };
+        })
+      );
 
       if (activeTab === 'popular') {
-        setPopularReviews(prev => (page === 1 ? mappedReviews : [...prev, ...mappedReviews]) as Review[]);
+        setPopularReviews(prev =>
+          page === 1 ? reviewsWithCounts : [...prev, ...reviewsWithCounts]
+        );
       } else {
-        setRecentReviews(prev => (page === 1 ? mappedReviews : [...prev, ...mappedReviews]) as Review[]);
+        setRecentReviews(prev =>
+          page === 1 ? reviewsWithCounts : [...prev, ...reviewsWithCounts]
+        );
       }
 
-      if (mappedReviews.length < PAGE_LIMIT) {
+      if (reviewsWithCounts.length < PAGE_LIMIT) {
         setHasMore(false);
       } else {
         setHasMore(true);
@@ -77,8 +97,7 @@ const Home = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, activeTab]); // <-- removed loading and hasMore here!
-
+  }, [page, activeTab, loading, hasMore]);
   // Load reviews when page or tab changes
   useEffect(() => {
     loadReviews();

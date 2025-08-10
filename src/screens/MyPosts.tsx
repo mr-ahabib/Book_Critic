@@ -5,8 +5,9 @@ import { Header } from '../components/Header';
 import { ReviewCard } from '../components/ReviewCard';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation';
-import { myReview,deleteReviewById  } from '../api/reviewApi';
-import { Review } from '../types/review'; // imported Review interface
+import { myReview, deleteReviewById } from '../api/reviewApi';
+import { getCommentCountByReviewId } from '../api/commentApi';  // Import comment count API
+import { Review } from '../types/review';
 
 const PAGE_LIMIT = 10;
 
@@ -18,51 +19,62 @@ const MyPosts = () => {
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
 
-  // Remove loading and hasMore from deps here to prevent infinite loops
   const loadMyReviews = useCallback(async () => {
-  setLoading(true);
-  try {
-    const data = await myReview(page, PAGE_LIMIT);
+    setLoading(true);
+    try {
+      const data = await myReview(page, PAGE_LIMIT);
 
-    const mappedReviews = data.map((item: any) => ({
-      id: item.id,
-      cover: `http://192.168.0.109:8080${item.coverUrl}`,
-      title: item.title,
-      author: item.author,
-      rating: item.rating,
-      review: item.review,
-      username: item.userName,
-      date: new Date(item.createdAt).toLocaleDateString(),
-      upvotes: 0,
-      downvotes: 0,
-      comments: 0,
-      upvoted: false,
-      downvoted: false,
-    }));
+      // Fetch comment counts in parallel
+      const reviewsWithComments = await Promise.all(
+        data.map(async (item: any) => {
+          let commentCount = 0;
+          try {
+            const res = await getCommentCountByReviewId(item.id);
+            commentCount = res.totalComments ?? 0;
+          } catch (error) {
+            console.error(`Failed to get comment count for review ${item.id}`, error);
+          }
 
-    setMyReviews(prev => (page === 1 ? mappedReviews : [...prev, ...mappedReviews]));
-    setHasMore(mappedReviews.length >= PAGE_LIMIT);
-  } catch (error) {
-    console.error('Failed to fetch my reviews:', error);
-    Alert.alert('Error', 'Could not load your reviews.');
-  } finally {
-    setLoading(false);
-  }
-}, [page]);  
+          return {
+            id: item.id,
+            cover: `http://192.168.0.109:8080${item.coverUrl}`,
+            title: item.title,
+            author: item.author,
+            rating: item.rating,
+            review: item.review,
+            username: item.userName,
+            date: new Date(item.createdAt).toLocaleDateString(),
+            upvotes: 0,
+            downvotes: 0,
+            comments: commentCount,  // <-- comment count here
+            upvoted: false,
+            downvoted: false,
+          };
+        })
+      );
 
-useEffect(() => {
-  if (!loading && hasMore) {
-    loadMyReviews();
-  }
-}, [page, loadMyReviews]); // No loading or hasMore here
+      setMyReviews(prev => (page === 1 ? reviewsWithComments : [...prev, ...reviewsWithComments]));
+      setHasMore(reviewsWithComments.length >= PAGE_LIMIT);
+    } catch (error) {
+      console.error('Failed to fetch my reviews:', error);
+      Alert.alert('Error', 'Could not load your reviews.');
+    } finally {
+      setLoading(false);
+    }
+  }, [page]);
 
+  useEffect(() => {
+    if (!loading && hasMore) {
+      loadMyReviews();
+    }
+  }, [page, loadMyReviews]);
 
   const handleVote = (id: number, type: 'up' | 'down') => {
     setMyReviews(myReviews.map(review => {
       if (review.id === id) {
-        return type === 'up' 
+        return type === 'up'
           ? {
-              ...review, 
+              ...review,
               upvotes: review.upvoted ? (review.upvotes || 0) - 1 : (review.upvotes || 0) + 1,
               downvotes: review.downvoted ? (review.downvotes || 0) - 1 : (review.downvotes || 0),
               upvoted: !review.upvoted,
@@ -88,32 +100,31 @@ useEffect(() => {
   };
 
   const handleDelete = (id: number) => {
-  Alert.alert(
-    "Delete Review",
-    "Are you sure you want to delete this review?",
-    [
-      { text: "Cancel", style: "cancel" },
-      { 
-        text: "Delete", 
-        style: "destructive",
-        onPress: async () => {
-          try {
-            setLoading(true);
-            await deleteReviewById(id);  // Call backend API to delete
-            setMyReviews(prevReviews => prevReviews.filter(review => review.id !== id)); // Remove from state
-            Alert.alert('Success', 'Review deleted successfully.');
-          } catch (error) {
-            console.error('Failed to delete review:', error);
-            Alert.alert('Error', 'Failed to delete review. Please try again.');
-          } finally {
-            setLoading(false);
+    Alert.alert(
+      "Delete Review",
+      "Are you sure you want to delete this review?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setLoading(true);
+              await deleteReviewById(id);
+              setMyReviews(prevReviews => prevReviews.filter(review => review.id !== id));
+              Alert.alert('Success', 'Review deleted successfully.');
+            } catch (error) {
+              console.error('Failed to delete review:', error);
+              Alert.alert('Error', 'Failed to delete review. Please try again.');
+            } finally {
+              setLoading(false);
+            }
           }
         }
-      }
-    ]
-  );
-};
-
+      ]
+    );
+  };
 
   const loadMore = () => {
     if (!loading && hasMore) {
@@ -135,13 +146,13 @@ useEffect(() => {
           keyExtractor={(item) => item.id.toString()}
           renderItem={({ item }) => (
             <View className="mb-2">
-              <ReviewCard 
+              <ReviewCard
                 review={item}
                 onPress={() => handleReviewPress(item)}
                 onUpvote={() => handleVote(item.id, 'up')}
                 onDownvote={() => handleVote(item.id, 'down')}
               />
-              <TouchableOpacity 
+              <TouchableOpacity
                 className="absolute top-2 right-2 bg-red-500 rounded-full p-2 z-10"
                 onPress={() => handleDelete(item.id)}
               >

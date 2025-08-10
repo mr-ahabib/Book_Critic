@@ -1,9 +1,19 @@
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Modal, Pressable } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Modal,
+  Pressable,
+  Alert,
+} from 'react-native';
 import { Feather, MaterialCommunityIcons, FontAwesome } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSelector } from 'react-redux';
 import { RootState } from '../redux/store'; // adjust this path if needed
+import { changePassword } from '../api/authApi'; // <-- your API import
 
 const Profile = () => {
   const [modalVisible, setModalVisible] = useState(false);
@@ -17,8 +27,9 @@ const Profile = () => {
     new: '',
     confirm: ''
   });
+  const [loading, setLoading] = useState(false); // for API call loading state
 
-const userData = useSelector((state: RootState) => state.auth.user);
+  const userData = useSelector((state: RootState) => state.auth.user);
 
   const validatePassword = () => {
     let valid = true;
@@ -49,11 +60,24 @@ const userData = useSelector((state: RootState) => state.auth.user);
     return valid;
   };
 
-  const handlePasswordChange = () => {
-    if (validatePassword()) {
-      console.log('Password changed:', passwordData);
+  const handlePasswordChange = async () => {
+    if (!validatePassword()) return;
+
+    setLoading(true);
+    try {
+      await changePassword({
+        currentPassword: passwordData.current,
+        newPassword: passwordData.new,
+      });
+      Alert.alert('Success', 'Password changed successfully');
       setModalVisible(false);
       setPasswordData({ current: '', new: '', confirm: '' });
+      setErrors({ current: '', new: '', confirm: '' });
+    } catch (error: any) {
+      console.error('Change password error:', error);
+      Alert.alert('Error', error.response?.data?.message || 'Failed to change password');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -74,7 +98,6 @@ const userData = useSelector((state: RootState) => state.auth.user);
 
       {/* Profile Content */}
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        {/* Realistic User Card */}
         <View className="mx-5 mt-6 bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
           {/* Profile Header */}
           <View className="bg-white p-5 items-center border-b border-gray-100">
@@ -83,7 +106,7 @@ const userData = useSelector((state: RootState) => state.auth.user);
             </View>
             <Text className="text-gray-900 text-xl font-bold mt-3">{userData?.name}</Text>
             <Text className="text-[#0d9488] text-sm font-medium mt-1">
-               Reviewer
+              Reviewer
             </Text>
           </View>
 
@@ -126,13 +149,14 @@ const userData = useSelector((state: RootState) => state.auth.user);
               <View className="flex-1">
                 <Text className="text-gray-500 text-xs">MEMBER SINCE</Text>
                 <Text className="text-gray-900 text-base mt-1">
-  {userData?.createdAt ? new Date(userData.createdAt).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  }) : ''}
-</Text>
-
+                  {userData?.createdAt
+                    ? new Date(userData.createdAt).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                      })
+                    : ''}
+                </Text>
               </View>
             </View>
           </View>
@@ -142,6 +166,7 @@ const userData = useSelector((state: RootState) => state.auth.user);
             <TouchableOpacity
               className="flex-row items-center justify-center py-3 bg-[#0d9488] rounded-lg"
               onPress={() => setModalVisible(true)}
+              disabled={loading}
             >
               <Feather name="lock" size={18} color="white" />
               <Text className="text-white font-medium ml-2">Change Password</Text>
@@ -177,7 +202,7 @@ const userData = useSelector((state: RootState) => state.auth.user);
                   className={`border ${errors.current ? 'border-red-500' : 'border-gray-200'} rounded-lg p-3`}
                   secureTextEntry
                   value={passwordData.current}
-                  onChangeText={(text) => setPasswordData({...passwordData, current: text})}
+                  onChangeText={(text) => setPasswordData({ ...passwordData, current: text })}
                   placeholder="Enter current password"
                 />
                 {errors.current && <Text className="text-red-500 text-xs mt-1">{errors.current}</Text>}
@@ -189,7 +214,7 @@ const userData = useSelector((state: RootState) => state.auth.user);
                   className={`border ${errors.new ? 'border-red-500' : 'border-gray-200'} rounded-lg p-3`}
                   secureTextEntry
                   value={passwordData.new}
-                  onChangeText={(text) => setPasswordData({...passwordData, new: text})}
+                  onChangeText={(text) => setPasswordData({ ...passwordData, new: text })}
                   placeholder="Enter new password"
                 />
                 {errors.new && <Text className="text-red-500 text-xs mt-1">{errors.new}</Text>}
@@ -201,7 +226,7 @@ const userData = useSelector((state: RootState) => state.auth.user);
                   className={`border ${errors.confirm ? 'border-red-500' : 'border-gray-200'} rounded-lg p-3`}
                   secureTextEntry
                   value={passwordData.confirm}
-                  onChangeText={(text) => setPasswordData({...passwordData, confirm: text})}
+                  onChangeText={(text) => setPasswordData({ ...passwordData, confirm: text })}
                   placeholder="Confirm new password"
                 />
                 {errors.confirm && <Text className="text-red-500 text-xs mt-1">{errors.confirm}</Text>}
@@ -214,14 +239,16 @@ const userData = useSelector((state: RootState) => state.auth.user);
                     setModalVisible(false);
                     setErrors({ current: '', new: '', confirm: '' });
                   }}
+                  disabled={loading}
                 >
                   <Text className="text-gray-700">Cancel</Text>
                 </Pressable>
                 <Pressable
                   className="bg-[#0d9488] px-4 py-2 rounded-lg"
                   onPress={handlePasswordChange}
+                  disabled={loading}
                 >
-                  <Text className="text-white">Update</Text>
+                  <Text className="text-white">{loading ? 'Updating...' : 'Update'}</Text>
                 </Pressable>
               </View>
             </View>

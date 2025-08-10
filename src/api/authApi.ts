@@ -10,3 +10,7 @@ export const signup = (data: {
   phone: string;
   password: string;
 }) => API.post('/signup', data);
+
+
+export const changePassword = (data: { currentPassword: string; newPassword: string }) =>
+  API.post('/change-password', data);
