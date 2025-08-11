@@ -32,15 +32,15 @@ It provides a smooth user experience with Redux state management, pagination for
 
 | Home Screen | Book Details | Add Review |
 |-------------|--------------|------------|
-| ![Home Screen](screenshots/3.jpg) | ![Book Details](screenshots/5.jpg) | ![Add Review](screenshots/6.jpg) |
+| ![Home Screen](screenshots\3.jpg) | ![Book Details](screenshots\5.jpg) | ![Add Review](screenshots\6.jpg) |
 
 | Reviews List | Comment Section | Voting System |
 |--------------|----------------|---------------|
-| ![Reviews](screenshots/7.jpg) | ![Comments](screenshots/5.jpg) | ![Voting](screenshots/4.jpg) |
+| ![Reviews](screenshots\7.jpg) | ![Comments](screenshots\5.jpg) | ![Voting](screenshots\4.jpg) |
 
 | Login | Signup  | User Profile | Password Change |
 |----------------------|--------------|----------|
-| ![Login](screenshots/1.jpg) |![Signup](screenshots/2.jpg) | ![Profile](screenshots/8.jpg) | ![Forgot Password](screenshots/9.jpg) |
+| ![Login](screenshots\1.jpg) |![Signup](screenshots\2.jpg) | ![Profile](screenshots\8.jpg) | ![Forgot Password](screenshots\9.jpg) |
 
 ---
 
