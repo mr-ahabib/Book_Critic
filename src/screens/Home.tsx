@@ -8,20 +8,25 @@ import { RootStackParamList } from '../navigation';
 import { Review } from '../types/review';
 import { fetchTopReviews, recentReview } from '../api/reviewApi';
 import { getCommentCountByReviewId } from '../api/commentApi';
+import { voteOnReview, getVoteCountByReviewId } from '../api/voteApi';
+
 const PAGE_LIMIT = 10;
 
 const Home = () => {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const [activeTab, setActiveTab] = useState<'popular' | 'recent'>('popular');
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
 
   const [popularReviews, setPopularReviews] = useState<Review[]>([]);
   const [recentReviews, setRecentReviews] = useState<Review[]>([]);
 
-  const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-const [commentCountsCache, setCommentCountsCache] = useState<Record<number, number>>({});
-  // Reset pagination and reviews when tab changes
+  // Caches for counts
+  const [commentCountsCache, setCommentCountsCache] = useState<Record<number, number>>({});
+  const [voteCountsCache, setVoteCountsCache] = useState<Record<number, { upvotes: number; downvotes: number }>>({});
+
+  // Reset page and data on tab change
   useEffect(() => {
     setPage(1);
     setHasMore(true);
@@ -32,102 +37,170 @@ const [commentCountsCache, setCommentCountsCache] = useState<Record<number, numb
     }
   }, [activeTab]);
 
-  const loadReviews = useCallback(async () => {
-    if (loading || !hasMore) return;
+  // Load reviews when page or tab changes
+  useEffect(() => {
+    const loadReviews = async () => {
+      if (loading || !hasMore) return;
 
-    setLoading(true);
+      setLoading(true);
 
-    try {
-      let data: any[] = [];
-      if (activeTab === 'popular') {
-        data = await fetchTopReviews(page, PAGE_LIMIT);
-      } else {
-        data = await recentReview(page, PAGE_LIMIT);
-      }
+      try {
+        let data: any[] = [];
+        if (activeTab === 'popular') {
+          data = await fetchTopReviews(page, PAGE_LIMIT);
+        } else {
+          data = await recentReview(page, PAGE_LIMIT);
+        }
 
-      // Fetch comment counts for each review
-      const reviewsWithCounts = await Promise.all(
-        data.map(async (item: any) => {
-          let commentCount = 0;
-          try {
-            const countRes = await getCommentCountByReviewId(item.id);
-            commentCount = countRes.totalComments || 0;
-          } catch (err) {
-            console.error(`Failed to fetch comment count for review ${item.id}:`, err);
+        if (!data || data.length === 0) {
+          setHasMore(false);
+          if (page === 1) {
+            activeTab === 'popular' ? setPopularReviews([]) : setRecentReviews([]);
           }
+          setLoading(false);
+          return;
+        }
+
+        // Identify reviews missing comment counts
+        const commentIdsToFetch = data
+          .map(r => r.id)
+          .filter(id => commentCountsCache[id] === undefined);
+
+        // Fetch missing comment counts in parallel
+        const newCommentCounts: Record<number, number> = {};
+        await Promise.all(
+          commentIdsToFetch.map(async id => {
+            try {
+              const res = await getCommentCountByReviewId(id);
+              newCommentCounts[id] = res.totalComments ?? 0;
+            } catch {
+              newCommentCounts[id] = 0;
+            }
+          })
+        );
+
+        // Update comment counts cache once
+        if (Object.keys(newCommentCounts).length > 0) {
+          setCommentCountsCache(prev => ({ ...prev, ...newCommentCounts }));
+        }
+
+        // Identify reviews missing vote counts
+        const voteIdsToFetch = data
+          .map(r => r.id)
+          .filter(id => voteCountsCache[id] === undefined);
+
+        const newVoteCounts: Record<number, { upvotes: number; downvotes: number }> = {};
+        await Promise.all(
+          voteIdsToFetch.map(async id => {
+            try {
+              const res = await getVoteCountByReviewId(id);
+              newVoteCounts[id] = {
+                upvotes: res.upvotes ?? 0,
+                downvotes: res.downvotes ?? 0,
+              };
+            } catch {
+              newVoteCounts[id] = { upvotes: 0, downvotes: 0 };
+            }
+          })
+        );
+
+        // Update vote counts cache once
+        if (Object.keys(newVoteCounts).length > 0) {
+          setVoteCountsCache(prev => ({ ...prev, ...newVoteCounts }));
+        }
+
+        // Map reviews with cached counts
+        const reviewsWithCounts: Review[] = data.map(item => {
+          const commentCount = commentCountsCache[item.id] ?? newCommentCounts[item.id] ?? 0;
+          const votes = voteCountsCache[item.id] ?? newVoteCounts[item.id] ?? { upvotes: 0, downvotes: 0 };
 
           return {
-            id: item.id, // Ensure id is a number
-            cover: `http://192.168.0.109:8080${item.coverUrl}`, // update with backend IP
+            id: item.id,
+            cover: `http://192.168.0.109:8080${item.coverUrl}`,
             title: item.title,
             author: item.author,
             rating: item.rating,
             review: item.review,
             username: item.userName,
             date: new Date(item.createdAt).toLocaleDateString(),
-            upvotes: 0,
-            downvotes: 0,
+
+            upvotes: votes.upvotes,
+            downvotes: votes.downvotes,
+
             comments: commentCount,
             upvoted: false,
             downvoted: false,
+
             coverUrl: item.coverUrl,
             userName: item.userName,
             createdAt: item.createdAt,
           };
-        })
-      );
+        });
 
-      if (activeTab === 'popular') {
-        setPopularReviews(prev =>
-          page === 1 ? reviewsWithCounts : [...prev, ...reviewsWithCounts]
-        );
-      } else {
-        setRecentReviews(prev =>
-          page === 1 ? reviewsWithCounts : [...prev, ...reviewsWithCounts]
-        );
-      }
-
-      if (reviewsWithCounts.length < PAGE_LIMIT) {
-        setHasMore(false);
-      } else {
-        setHasMore(true);
-      }
-    } catch (error) {
-      console.error('Failed to fetch reviews:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [page, activeTab, loading, hasMore]);
-  // Load reviews when page or tab changes
-  useEffect(() => {
-    loadReviews();
-  }, [page, activeTab, loadReviews]);
-
-  const handleVote = (id: number, type: 'up' | 'down') => {
-    const updateReviews = (reviews: Review[]) =>
-      reviews.map(review => {
-        if (review.id === id) {
-          return type === 'up'
-            ? {
-                ...review,
-                upvotes: review.upvoted ? review.upvotes! - 1 : review.upvotes! + 1,
-                downvotes: review.downvoted ? review.downvotes! - 1 : review.downvotes!,
-                upvoted: !review.upvoted,
-                downvoted: false,
-              }
-            : {
-                ...review,
-                downvotes: review.downvoted ? review.downvotes! - 1 : review.downvotes! + 1,
-                upvotes: review.upvoted ? review.upvotes! - 1 : review.upvotes!,
-                downvoted: !review.downvoted,
-                upvoted: false,
-              };
+        if (activeTab === 'popular') {
+          setPopularReviews(prev => (page === 1 ? reviewsWithCounts : [...prev, ...reviewsWithCounts]));
+        } else {
+          setRecentReviews(prev => (page === 1 ? reviewsWithCounts : [...prev, ...reviewsWithCounts]));
         }
-        return review;
-      });
 
-    setPopularReviews(updateReviews(popularReviews));
-    setRecentReviews(updateReviews(recentReviews));
+        setHasMore(reviewsWithCounts.length === PAGE_LIMIT);
+      } catch (error) {
+        console.error('Failed to fetch reviews:', error);
+        if (error.response?.status === 404) { // Check if error has a response property
+          setHasMore(false);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadReviews();
+  }, [activeTab, page]);
+
+  // Vote handler stays mostly same but update caches on success to keep vote counts consistent
+  const handleVote = async (id: number, type: 'up' | 'down') => {
+    try {
+      const voteType = type === 'up' ? 'upvote' : 'downvote';
+      const response = await voteOnReview(id, voteType);
+
+      const upvotes = response.upvotes ?? 0;
+      const downvotes = response.downvotes ?? 0;
+
+      setVoteCountsCache(prev => ({
+        ...prev,
+        [id]: { upvotes, downvotes },
+      }));
+
+      const updateVotes = (reviews: Review[]) =>
+        reviews.map(review => {
+          if (review.id === id) {
+            let upvoted = review.upvoted;
+            let downvoted = review.downvoted;
+
+            if (type === 'up') {
+              upvoted = !upvoted;
+              downvoted = false;
+            } else {
+              downvoted = !downvoted;
+              upvoted = false;
+            }
+
+            return {
+              ...review,
+              upvotes,
+              downvotes,
+              upvoted,
+              downvoted,
+            };
+          }
+          return review;
+        });
+
+      setPopularReviews(updateVotes);
+      setRecentReviews(updateVotes);
+    } catch (error) {
+      console.error('Vote API failed:', error);
+    }
   };
 
   const handleReviewPress = (review: Review) => {
@@ -197,23 +270,29 @@ const [commentCountsCache, setCommentCountsCache] = useState<Record<number, numb
       </View>
 
       {/* Reviews List */}
-      <FlatList
-        data={currentReviews}
-        keyExtractor={item => item.id.toString()}
-        renderItem={({ item }) => (
-          <ReviewCard
-            review={item}
-            onPress={() => handleReviewPress(item)}
-            onUpvote={() => handleVote(item.id, 'up')}
-            onDownvote={() => handleVote(item.id, 'down')}
-          />
-        )}
-        contentContainerStyle={{ paddingBottom: 80, paddingHorizontal: 16 }}
-        onEndReached={loadMore}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={loading ? <ActivityIndicator size="small" color="#0d9488" /> : null}
-        showsVerticalScrollIndicator={false}
-      />
+      {!loading && currentReviews.length === 0 ? (
+        <View className="flex-1 items-center justify-center mt-10">
+          <Text className="text-gray-500 text-lg">No reviews yet.</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={currentReviews}
+          keyExtractor={item => item.id.toString()}
+          renderItem={({ item }) => (
+            <ReviewCard
+              review={item}
+              onPress={() => handleReviewPress(item)}
+              onUpvote={() => handleVote(item.id, 'up')}
+              onDownvote={() => handleVote(item.id, 'down')}
+            />
+          )}
+          contentContainerStyle={{ paddingBottom: 80, paddingHorizontal: 16 }}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={loading ? <ActivityIndicator size="small" color="#0d9488" /> : null}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
     </View>
   );
 };

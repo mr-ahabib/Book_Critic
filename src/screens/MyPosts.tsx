@@ -6,7 +6,8 @@ import { ReviewCard } from '../components/ReviewCard';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation';
 import { myReview, deleteReviewById } from '../api/reviewApi';
-import { getCommentCountByReviewId } from '../api/commentApi';  // Import comment count API
+import { getCommentCountByReviewId } from '../api/commentApi';
+import { getVoteCountByReviewId, voteOnReview } from '../api/voteApi'; // Import vote count API here
 import { Review } from '../types/review';
 
 const PAGE_LIMIT = 10;
@@ -35,6 +36,15 @@ const MyPosts = () => {
             console.error(`Failed to get comment count for review ${item.id}`, error);
           }
 
+          // Also fetch vote counts and user vote status for each review
+          let voteData;
+          try {
+            voteData = await getVoteCountByReviewId(item.id);
+          } catch (error) {
+            console.error(`Failed to get vote count for review ${item.id}`, error);
+            voteData = { upvotes: 0, downvotes: 0, userVote: null };
+          }
+
           return {
             id: item.id,
             cover: `http://192.168.0.109:8080${item.coverUrl}`,
@@ -44,11 +54,11 @@ const MyPosts = () => {
             review: item.review,
             username: item.userName,
             date: new Date(item.createdAt).toLocaleDateString(),
-            upvotes: 0,
-            downvotes: 0,
-            comments: commentCount,  // <-- comment count here
-            upvoted: false,
-            downvoted: false,
+            upvotes: voteData.upvotes ?? 0,
+            downvotes: voteData.downvotes ?? 0,
+            comments: commentCount,
+            upvoted: voteData.userVote === 'upvote',
+            downvoted: voteData.userVote === 'downvote',
           };
         })
       );
@@ -56,8 +66,6 @@ const MyPosts = () => {
       setMyReviews(prev => (page === 1 ? reviewsWithComments : [...prev, ...reviewsWithComments]));
       setHasMore(reviewsWithComments.length >= PAGE_LIMIT);
     } catch (error) {
-      console.error('Failed to fetch my reviews:', error);
-      Alert.alert('Error', 'Could not load your reviews.');
     } finally {
       setLoading(false);
     }
@@ -69,27 +77,34 @@ const MyPosts = () => {
     }
   }, [page, loadMyReviews]);
 
-  const handleVote = (id: number, type: 'up' | 'down') => {
-    setMyReviews(myReviews.map(review => {
-      if (review.id === id) {
-        return type === 'up'
-          ? {
+  const handleVote = async (id: number, type: 'up' | 'down') => {
+    try {
+      const voteType = type === 'up' ? 'upvote' : 'downvote';
+
+      // Register vote
+      await voteOnReview(id, voteType);
+
+      // Fetch updated vote counts and current user vote from backend
+      const voteData = await getVoteCountByReviewId(id);
+
+      setMyReviews(prevReviews =>
+        prevReviews.map(review => {
+          if (review.id === id) {
+            return {
               ...review,
-              upvotes: review.upvoted ? (review.upvotes || 0) - 1 : (review.upvotes || 0) + 1,
-              downvotes: review.downvoted ? (review.downvotes || 0) - 1 : (review.downvotes || 0),
-              upvoted: !review.upvoted,
-              downvoted: false,
-            }
-          : {
-              ...review,
-              downvotes: review.downvoted ? (review.downvotes || 0) - 1 : (review.downvotes || 0) + 1,
-              upvotes: review.upvoted ? (review.upvotes || 0) - 1 : (review.upvotes || 0),
-              downvoted: !review.downvoted,
-              upvoted: false,
+              upvotes: voteData.upvotes ?? review.upvotes,
+              downvotes: voteData.downvotes ?? review.downvotes,
+              upvoted: voteData.userVote === 'upvote',
+              downvoted: voteData.userVote === 'downvote',
             };
-      }
-      return review;
-    }));
+          }
+          return review;
+        })
+      );
+    } catch (error) {
+      console.error('Vote API failed:', error);
+      Alert.alert('Error', 'Failed to register vote. Please try again.');
+    }
   };
 
   const handleReviewPress = (review: Review) => {

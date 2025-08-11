@@ -13,7 +13,7 @@ import { FontAwesome, Ionicons } from '@expo/vector-icons';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation';
 import { LinearGradient } from 'expo-linear-gradient';
-
+import { voteOnReview } from '../api/voteApi';
 import { createComment, getCommentsByReviewId } from '../api/commentApi';
 
 interface Review {
@@ -53,22 +53,21 @@ const ReviewDetails = () => {
 
   // Load all comments without pagination
   const loadComments = async () => {
-  setLoadingComments(true);
-  try {
-    const res = await getCommentsByReviewId(reviewData.id);
-    if (Array.isArray(res.data)) {
-      setComments(res.data);
-    } else {
-      setComments([]);
-      console.warn('Expected array for comments but got:', res.data);
+    setLoadingComments(true);
+    try {
+      const res = await getCommentsByReviewId(reviewData.id);
+      if (Array.isArray(res.data)) {
+        setComments(res.data);
+      } else {
+        setComments([]);
+        console.warn('Expected array for comments but got:', res.data);
+      }
+    } catch (error) {
+      
+    } finally {
+      setLoadingComments(false);
     }
-  } catch (error) {
-    console.error('Failed to load comments:', error);
-  } finally {
-    setLoadingComments(false);
-  }
-};
-
+  };
 
   useEffect(() => {
     loadComments();
@@ -100,26 +99,48 @@ const ReviewDetails = () => {
     };
   }, []);
 
-  const handleVote = (type: 'up' | 'down') => {
-    setCurrentReview((prev) => {
+  const handleVote = async (id: number, type: 'up' | 'down') => {
+    try {
+      const voteType = type === 'up' ? 'upvote' : 'downvote';
+
+      const response = await voteOnReview(id, voteType);
+
+      // Extract updated counts from response, fallback to current counts
+      const upvotes = response.upvotes ?? currentReview.upvotes;
+      const downvotes = response.downvotes ?? currentReview.downvotes;
+
+      // Determine toggling logic
+      let upvoted = currentReview.upvoted ?? false;
+      let downvoted = currentReview.downvoted ?? false;
+
       if (type === 'up') {
-        return {
-          ...prev,
-          upvotes: prev.upvoted ? prev.upvotes - 1 : prev.upvotes + 1,
-          downvotes: prev.downvoted ? prev.downvotes - 1 : prev.downvotes,
-          upvoted: !prev.upvoted,
-          downvoted: false,
-        };
+        // If already upvoted, clicking again removes vote
+        if (upvoted) {
+          upvoted = false;
+        } else {
+          upvoted = true;
+          downvoted = false;
+        }
       } else {
-        return {
-          ...prev,
-          downvotes: prev.downvoted ? prev.downvotes - 1 : prev.downvotes + 1,
-          upvotes: prev.upvoted ? prev.upvotes - 1 : prev.upvotes,
-          downvoted: !prev.downvoted,
-          upvoted: false,
-        };
+        if (downvoted) {
+          downvoted = false;
+        } else {
+          downvoted = true;
+          upvoted = false;
+        }
       }
-    });
+
+      // Update the review state with new vote info
+      setCurrentReview((prev) => ({
+        ...prev,
+        upvotes,
+        downvotes,
+        upvoted,
+        downvoted,
+      }));
+    } catch (error) {
+      console.error('Vote API failed:', error);
+    }
   };
 
   return (
@@ -179,7 +200,7 @@ const ReviewDetails = () => {
               <View className="flex-row">
                 <TouchableOpacity
                   className="flex-row items-center mr-6"
-                  onPress={() => handleVote('up')}
+                  onPress={() => handleVote(currentReview.id, 'up')}
                 >
                   <Ionicons
                     name="arrow-up"
@@ -197,7 +218,7 @@ const ReviewDetails = () => {
 
                 <TouchableOpacity
                   className="flex-row items-center"
-                  onPress={() => handleVote('down')}
+                  onPress={() => handleVote(currentReview.id, 'down')}
                 >
                   <Ionicons
                     name="arrow-down"
