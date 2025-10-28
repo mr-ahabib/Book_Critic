@@ -1,5 +1,7 @@
 # 📚 Book Critic – React Native Book Review System
 
+## Backend Server: https://github.com/mr-ahabib/Book_Review_Backend
+
 **Book Critic** is a mobile application built with **React Native** for discovering, reviewing, and discussing books.  
 It provides a smooth user experience with Redux state management, pagination for large datasets, axios instances for API requests, and reusable components for maintainable code.
 
@@ -41,7 +43,4 @@ It provides a smooth user experience with Redux state management, pagination for
 | Login | Signup | User Profile | Password Change |
 |-------|--------|--------------|-----------------|
 | ![Login](Screenshots/1.jpg) | ![Signup](Screenshots/2.jpg) | ![Profile](Screenshots/8.jpg) | ![Forgot Password](Screenshots/9.jpg) |
-
-## Backend Server: https://github.com/mr-ahabib/Book_Review_Backend
 ---
-
